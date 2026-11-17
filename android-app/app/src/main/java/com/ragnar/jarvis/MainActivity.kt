@@ -42,7 +42,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
         }
         val subtitle = TextView(this).apply {
-            text = "PERSONAL VOICE COMPANION  •  v0.4"
+            text = "PERSONAL VOICE COMPANION  •  v0.5"
             textSize = 11f
             letterSpacing = 0.12f
             setTextColor(0xFF8BA9C1.toInt())
@@ -77,26 +77,33 @@ class MainActivity : Activity() {
         val guide = TextView(this).apply {
             text = """\nHOW TO USE
 
-1. Tap ACTIVATE JARVIS and allow microphone access.
+1. Tap ACTIVATE JARVIS and grant microphone, notification and camera permissions.
 2. Say “Hey Jarvis”.
 3. Wait for “Yes, sir?” and then speak your command.
 
-AVAILABLE COMMANDS
+PHONE COMMANDS
 
-• “What time is it?”
-• “What is today's date?”
-• “Open YouTube”
-• “Open Maps”
-• “Open settings”
+• “Turn on/off the flashlight”
+• “Volume up”, “volume down”, “mute”
+• “Set an alarm for 7 AM”
+• “Set a timer for 10 minutes”
+• “Call [phone number]” — opens the dialler for confirmation
+• “Text [phone number] saying [message]” — opens a draft
+• “Open YouTube / WhatsApp / Telegram / Spotify / Chrome / Gmail / TikTok / ChatGPT”
+• “Open Bluetooth settings”, “open internet settings”
+• “Open sound / display / location settings”
+• “Open camera”, “open maps”
+• “Navigate to [destination]”
+• “Create a calendar event [title]”
 • “Search for [something]”
 • “Ask ChatGPT [your question]”
 • “Stand down”
 
-VOICE & PRIVACY
+LIMITATIONS & PRIVACY
 
-Wake-word detection runs on your phone. Spoken commands use the speech-recognition service available on your Android device; offline recognition depends on whether that service has an English (UK) offline language pack installed. “Ask ChatGPT” opens ChatGPT with your question prepared; it does not silently access your ChatGPT account or send messages in the background.
+Wake-word detection runs locally. Spoken command recognition uses the Android speech service; offline recognition depends on an installed English (UK) offline pack. Calls and messages open the relevant app for you to review and confirm. Calendar events open a draft for you to complete. “Ask ChatGPT” opens ChatGPT; it does not silently access your account. Protected Android controls may open a system panel instead of changing settings directly.
 
-For reliable background listening, keep the JARVIS notification active. Android and Xiaomi battery controls may restrict background microphone use."""
+Keep the JARVIS notification active while listening. Android and Xiaomi battery controls may restrict background microphone use."""
             textSize = 13f
             setTextColor(0xFFB8D7E8.toInt())
             setPadding(4, 26, 4, 0)
@@ -109,12 +116,11 @@ For reliable background listening, keep the JARVIS notification active. Android 
         root.addView(stop, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(testVoice, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(guide)
-        val scroll = ScrollView(this).apply { addView(root) }
-        setContentView(scroll)
+        setContentView(ScrollView(this).apply { addView(root) })
     }
 
     private fun requestAndStart() {
-        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
         if (Build.VERSION.SDK_INT >= 33) permissions += Manifest.permission.POST_NOTIFICATIONS
         val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), 41) else startWakeService()
