@@ -23,13 +23,12 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
-import com.openwakeword.OpenWakeWord
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class WakeWordService : Service() {
-    private var detector: OpenWakeWord? = null
+    private var detector: JarvisWakeWordDetector? = null
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -163,12 +162,12 @@ class WakeWordService : Service() {
     private fun startWakeWordDetector() {
         try {
             detector?.release()
-            detector = OpenWakeWord.Builder(applicationContext)
-                .setModel(OpenWakeWord.BuiltInModel.HEY_JARVIS)
+            detector = JarvisWakeWordDetector.Builder(applicationContext)
+                .setModel(JarvisWakeWordDetector.BuiltInModel.HEY_JARVIS)
                 .setThreshold(0.35f)
                 .setDebounceMs(2500L)
                 .build()
-            detector?.start {
+            detector?.start({
                 mainHandler.post {
                     if (!capturingCommand) {
                         capturingCommand = true
@@ -177,8 +176,13 @@ class WakeWordService : Service() {
                         mainHandler.postDelayed({ listenForCommand() }, 650)
                     }
                 }
-            }
-            updateNotification("Microphone ready — wake-word engine starting")
+            }, { engineStatus ->
+                updateNotification(engineStatus)
+                if (engineStatus.startsWith("Engine error:") || engineStatus.contains("could not initialise") || engineStatus.contains("failed")) {
+                    speak("Wake word diagnostic. $engineStatus")
+                }
+            })
+            updateNotification("Wake-word engine initialising")
         } catch (e: Exception) {
             started = false
             updateNotification("Wake-word startup failed: ${e.message ?: e.javaClass.simpleName}")
