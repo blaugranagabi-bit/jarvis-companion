@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.AudioFormat
+import android.media.MediaRecorder
 import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Build
@@ -96,6 +99,68 @@ class WakeWordService : Service() {
     }
 
     private fun startWakeWord() {
+        if (started) return
+        started = true
+        updateNotification("Checking microphone access…")
+        Thread({
+            val diagnostic = testMicrophoneCapture()
+            mainHandler.post {
+                if (!started) return@post
+                if (diagnostic != null) {
+                    started = false
+                    updateNotification("Microphone test failed: $diagnostic")
+                    speak("I cannot access the microphone, sir. $diagnostic")
+                    return@post
+                }
+                updateNotification("Microphone test passed — starting wake-word engine…")
+                startWakeWordDetector()
+            }
+        }, "JarvisMicCheck").start()
+    }
+
+    // Verify Android can actually open and read the microphone before starting
+    // the wake-word library. Its public API does not report AudioRecord failures.
+    private fun testMicrophoneCapture(): String? {
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return "Microphone permission is not granted"
+        }
+        val sampleRate = 16000
+        val minBuffer = AudioRecord.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        if (minBuffer <= 0) return "This device rejected 16 kHz microphone capture (code $minBuffer)"
+        var recorder: AudioRecord? = null
+        return try {
+            recorder = AudioRecord(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                maxOf(minBuffer, 4096)
+            )
+            if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+                "Android could not initialise the microphone recorder"
+            } else {
+                recorder.startRecording()
+                if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    "Android did not enter microphone recording mode"
+                } else {
+                    val samples = ShortArray(1280)
+                    val read = recorder.read(samples, 0, samples.size)
+                    if (read <= 0) "Microphone read failed (code $read)" else null
+                }
+            }
+        } catch (e: SecurityException) {
+            "Android denied microphone access"
+        } catch (e: Exception) {
+            "Microphone error: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
+        } finally {
+            try { recorder?.stop() } catch (_: Exception) {}
+            try { recorder?.release() } catch (_: Exception) {}
+        }
+    }
+
+    private fun startWakeWordDetector() {
         try {
             detector?.release()
             detector = OpenWakeWord.Builder(applicationContext)
@@ -113,12 +178,11 @@ class WakeWordService : Service() {
                     }
                 }
             }
-            started = true
-            updateNotification("Listening offline — say Hey Jarvis")
+            updateNotification("Microphone ready — wake-word engine starting")
         } catch (e: Exception) {
-            updateNotification("Could not start wake-word engine")
-            speak("I could not start the wake word engine, sir.")
-            stopSelf()
+            started = false
+            updateNotification("Wake-word startup failed: ${e.message ?: e.javaClass.simpleName}")
+            speak("The wake word engine failed to start, sir.")
         }
     }
 
