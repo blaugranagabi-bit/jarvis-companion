@@ -12,4 +12,7 @@ android {
   versionCode=1
   versionName="0.1.0"
  }
+    dependencies {
+        implementation("ai.picovoice:porcupine-android:4.0.2")
+    }
 }
