@@ -100,7 +100,7 @@ class WakeWordService : Service() {
             detector?.release()
             detector = OpenWakeWord.Builder(applicationContext)
                 .setModel(OpenWakeWord.BuiltInModel.HEY_JARVIS)
-                .setThreshold(0.5f)
+                .setThreshold(0.35f)
                 .setDebounceMs(2500L)
                 .build()
             detector?.start {
