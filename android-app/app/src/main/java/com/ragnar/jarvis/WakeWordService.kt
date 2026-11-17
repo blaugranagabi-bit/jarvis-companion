@@ -372,7 +372,15 @@ class WakeWordService : Service() {
     }
 
     private fun resumeWakeWord() {
-        mainHandler.postDelayed({ if (started && !capturingCommand) startWakeWord() }, 900)
+        // The service remains started while the wake-word detector is paused for command capture.
+        // Calling startWakeWord() here is ineffective because its `started` guard returns early.
+        // Recreate and restart the detector directly after the speech recognizer releases the mic.
+        mainHandler.postDelayed({
+            if (started && !capturingCommand) {
+                updateNotification("Restarting wake-word listening…")
+                startWakeWordDetector()
+            }
+        }, 900)
     }
 
     private fun speak(text: String) {
