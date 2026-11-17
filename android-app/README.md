@@ -1,23 +1,22 @@
-# JARVIS Android companion prototype
+# JARVIS Android companion — v0.2.0
 
-This native Android project is separate from the GitHub Pages PWA.
+Native Android prototype with an on-device Porcupine wake-word engine.
 
-## Implemented foundation
-- Native launcher activity and microphone permission flow.
-- Microphone foreground service with persistent notification and Stop action.
-- British English Android text-to-speech.
-- Best-effort spoken Jarvis phrase detection through Android SpeechRecognizer.
-- One follow-up spoken command, read back by the current prototype.
+## Wake-word setup
+1. Install the APK built by GitHub Actions.
+2. Create a Picovoice Console account at https://console.picovoice.ai/ and copy your AccessKey.
+3. Open JARVIS, paste the key, and tap ACTIVATE JARVIS.
+4. Grant microphone and notification permissions.
+5. The app uses Porcupine's built-in English JARVIS keyword and replies "Yes, sir?" using Android text-to-speech.
 
-## Important limitations
-This is not yet a production always-on assistant. SpeechRecognizer is a general speech-to-text API, not a dedicated low-power wake-word detector. It may use a network recognition provider, stop after timeouts, consume battery, or be unavailable while another app uses the microphone.
+Porcupine requires a valid AccessKey. The key is supplied locally at runtime, not committed to source code or saved by this prototype. Initial key validation requires internet access; wake-word inference runs on-device.
 
-Android requires microphone permission and a user-visible foreground service. On Android 14+, microphone foreground services have while-in-use restrictions; start the service from the visible activity after the user grants permission. Android 15 blocks starting microphone foreground services from BOOT_COMPLETED. Battery optimisation and manufacturer policies can also stop background work.
-
-The prototype does not include a secure AI backend, custom offline wake-word model, reboot recovery, or default-assistant role integration. Never place an AI provider secret in the APK. For reliable low-power wake-word activation, integrate a dedicated on-device wake-word SDK and its trained model, then implement a compliant Android voice-interaction design.
+## Current limitations
+- This version implements offline wake-word detection and a spoken acknowledgement only.
+- It does not yet capture a follow-up natural-language command or connect to an AI conversation backend.
+- A secure AI service requires a separately provisioned backend and credentials; never embed an AI provider secret in the APK.
+- Android microphone foreground-service restrictions, battery optimisation and Xiaomi background-management policies can affect locked-screen operation. The user must start listening while the app is visible and keep the persistent notification enabled.
+- A future release should add the Android voice-interaction role, command capture, secure backend, and Xiaomi-specific battery/background setup guidance.
 
 ## Build
-Open the android-app directory in current Android Studio, allow Gradle sync, then build the app debug APK. Install it on an Android 15 device. Open JARVIS, tap ACTIVATE JARVIS, and grant microphone and notification permissions. A persistent notification indicates listening; its Stop action stops the service.
-
-Application ID: com.ragnar.jarvis
-Version: 0.1.0
+Open this directory in Android Studio or use the repository GitHub Actions workflow. Application ID: `com.ragnar.jarvis`.
