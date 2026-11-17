@@ -6,40 +6,54 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private var demoTts: TextToSpeech? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        demoTts = TextToSpeech(this) { result ->
+            if (result == TextToSpeech.SUCCESS) {
+                demoTts?.language = Locale.UK
+                demoTts?.setSpeechRate(0.88f)
+                demoTts?.setPitch(0.92f)
+            }
+        }
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(32, 40, 32, 40)
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(28, 42, 28, 36)
             setBackgroundColor(0xFF050B14.toInt())
         }
         val title = TextView(this).apply {
             text = "J.A.R.V.I.S."
-            textSize = 30f
+            textSize = 32f
             letterSpacing = 0.28f
             setTextColor(0xFF64D9FF.toInt())
             gravity = Gravity.CENTER
         }
-        val intro = TextView(this).apply {
-            text = "Your offline voice companion"
-            textSize = 16f
-            setTextColor(0xFFB8D7E8.toInt())
+        val subtitle = TextView(this).apply {
+            text = "PERSONAL VOICE COMPANION  •  v0.4"
+            textSize = 11f
+            letterSpacing = 0.12f
+            setTextColor(0xFF8BA9C1.toInt())
             gravity = Gravity.CENTER
-            setPadding(0, 18, 0, 12)
+            setPadding(0, 10, 0, 28)
         }
         status = TextView(this).apply {
-            text = "READY — NO ACCOUNT OR ACCESS KEY REQUIRED"
-            textSize = 13f
-            setTextColor(0xFFB8D7E8.toInt())
+            text = "SYSTEM STANDBY"
+            textSize = 14f
+            letterSpacing = 0.08f
+            setTextColor(0xFF64D9FF.toInt())
             gravity = Gravity.CENTER
             setPadding(0, 20, 0, 20)
         }
@@ -48,26 +62,55 @@ class MainActivity : Activity() {
             setOnClickListener { requestAndStart() }
         }
         val stop = Button(this).apply {
-            text = "STOP LISTENING"
+            text = "STAND DOWN"
             setOnClickListener {
                 stopService(Intent(this@MainActivity, WakeWordService::class.java))
                 status.text = "VOICE SYSTEM STOPPED"
             }
         }
-        val help = TextView(this).apply {
-            text = "Say “Hey Jarvis” to wake the assistant. Wake-word detection runs locally on your phone. Keep the notification active while listening. Android and Xiaomi battery controls may affect background operation."
-            textSize = 12f
-            setTextColor(0xFF8BA9C1.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 22, 0, 0)
+        val testVoice = Button(this).apply {
+            text = "TEST JARVIS VOICE"
+            setOnClickListener {
+                demoTts?.speak("At your service, sir. All systems are standing by.", TextToSpeech.QUEUE_FLUSH, null, "jarvis-demo")
+            }
+        }
+        val guide = TextView(this).apply {
+            text = """\nHOW TO USE
+
+1. Tap ACTIVATE JARVIS and allow microphone access.
+2. Say “Hey Jarvis”.
+3. Wait for “Yes, sir?” and then speak your command.
+
+AVAILABLE COMMANDS
+
+• “What time is it?”
+• “What is today's date?”
+• “Open YouTube”
+• “Open Maps”
+• “Open settings”
+• “Search for [something]”
+• “Ask ChatGPT [your question]”
+• “Stand down”
+
+VOICE & PRIVACY
+
+Wake-word detection runs on your phone. Spoken commands use the speech-recognition service available on your Android device; offline recognition depends on whether that service has an English (UK) offline language pack installed. “Ask ChatGPT” opens ChatGPT with your question prepared; it does not silently access your ChatGPT account or send messages in the background.
+
+For reliable background listening, keep the JARVIS notification active. Android and Xiaomi battery controls may restrict background microphone use."""
+            textSize = 13f
+            setTextColor(0xFFB8D7E8.toInt())
+            setPadding(4, 26, 4, 0)
+            setLineSpacing(5f, 1f)
         }
         root.addView(title)
-        root.addView(intro)
+        root.addView(subtitle)
         root.addView(status)
-        root.addView(start)
-        root.addView(stop)
-        root.addView(help)
-        setContentView(root)
+        root.addView(start, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        root.addView(stop, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        root.addView(testVoice, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        root.addView(guide)
+        val scroll = ScrollView(this).apply { addView(root) }
+        setContentView(scroll)
     }
 
     private fun requestAndStart() {
@@ -90,5 +133,12 @@ class MainActivity : Activity() {
         if (requestCode == 41 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startWakeService()
         } else status.text = "MICROPHONE PERMISSION IS REQUIRED"
+    }
+
+    override fun onDestroy() {
+        demoTts?.stop()
+        demoTts?.shutdown()
+        demoTts = null
+        super.onDestroy()
     }
 }
