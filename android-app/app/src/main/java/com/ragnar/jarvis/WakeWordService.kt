@@ -26,7 +26,10 @@ class WakeWordService : Service() {
             ttsReady = result == TextToSpeech.SUCCESS
             if (ttsReady) {
                 tts?.language = Locale.UK
-                tts?.setSpeechRate(0.94f)
+                // A measured pace and slightly lower pitch give the system voice
+                // a more composed, formal British-assistant delivery.
+                tts?.setSpeechRate(0.88f)
+                tts?.setPitch(0.92f)
             }
         }
     }
