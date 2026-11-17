@@ -8,14 +8,11 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
-    private lateinit var accessKey: EditText
-    private var pendingKey = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,21 +30,14 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
         }
         val intro = TextView(this).apply {
-            text = "Offline wake-word engine"
-            textSize = 15f
+            text = "Your offline voice companion"
+            textSize = 16f
             setTextColor(0xFFB8D7E8.toInt())
             gravity = Gravity.CENTER
             setPadding(0, 18, 0, 12)
         }
-        accessKey = EditText(this).apply {
-            hint = "Paste your Picovoice AccessKey"
-            setSingleLine(true)
-            textSize = 14f
-            setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0xFF8BA9C1.toInt())
-        }
         status = TextView(this).apply {
-            text = "READY — ACCESS KEY REQUIRED"
+            text = "READY — NO ACCOUNT OR ACCESS KEY REQUIRED"
             textSize = 13f
             setTextColor(0xFFB8D7E8.toInt())
             gravity = Gravity.CENTER
@@ -55,12 +45,7 @@ class MainActivity : Activity() {
         }
         val start = Button(this).apply {
             text = "ACTIVATE JARVIS"
-            setOnClickListener {
-                pendingKey = accessKey.text.toString().trim()
-                if (pendingKey.isBlank()) {
-                    status.text = "Enter your Picovoice AccessKey first"
-                } else requestAndStart()
-            }
+            setOnClickListener { requestAndStart() }
         }
         val stop = Button(this).apply {
             text = "STOP LISTENING"
@@ -70,7 +55,7 @@ class MainActivity : Activity() {
             }
         }
         val help = TextView(this).apply {
-            text = "Get an AccessKey at console.picovoice.ai. The key is passed to the service for this session and is not saved by this app. Wake-word detection runs on-device after initial key validation."
+            text = "Say “Hey Jarvis” to wake the assistant. Wake-word detection runs locally on your phone. Keep the notification active while listening. Android and Xiaomi battery controls may affect background operation."
             textSize = 12f
             setTextColor(0xFF8BA9C1.toInt())
             gravity = Gravity.CENTER
@@ -78,7 +63,6 @@ class MainActivity : Activity() {
         }
         root.addView(title)
         root.addView(intro)
-        root.addView(accessKey)
         root.addView(status)
         root.addView(start)
         root.addView(stop)
@@ -95,9 +79,8 @@ class MainActivity : Activity() {
 
     private fun startWakeService() {
         val intent = Intent(this, WakeWordService::class.java)
-            .putExtra(WakeWordService.EXTRA_ACCESS_KEY, pendingKey)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
-        status.text = "STARTING OFFLINE JARVIS DETECTION…"
+        status.text = "STARTING — SAY “HEY JARVIS”"
     }
 
     override fun onRequestPermissionsResult(
