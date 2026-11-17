@@ -9,7 +9,6 @@ import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import androidx.core.content.ContextCompat
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -291,7 +290,7 @@ class JarvisWakeWordDetector private constructor(
     // ------------------------------------------------------------------
 
     private fun initAudioRecord(): Boolean {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) return false
 
         val bufferSize = AudioRecord.getMinBufferSize(
