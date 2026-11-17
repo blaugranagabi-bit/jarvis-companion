@@ -57,7 +57,19 @@ class WakeWordService : Service() {
                     override fun onEndOfSpeech() { updateNotification("Processing command…") }
                     override fun onError(error: Int) {
                         capturingCommand = false
-                        speak("I beg your pardon, sir. I did not catch that.")
+                        val reason = when (error) {
+                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                            SpeechRecognizer.ERROR_CLIENT -> "Speech service client error"
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission missing"
+                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service network unavailable"
+                            SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech recognised"
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech service is busy"
+                            SpeechRecognizer.ERROR_SERVER -> "Speech service server error"
+                            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "English speech pack unavailable"
+                            else -> "Speech recognition error $error"
+                        }
+                        updateNotification("$reason — say Hey Jarvis to retry")
+                        speak("I could not understand that, sir. $reason.")
                         resumeWakeWord()
                     }
                     override fun onResults(results: android.os.Bundle?) {
@@ -122,7 +134,8 @@ class WakeWordService : Service() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-GB")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-GB")
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                // Do not force offline mode: many devices lack the required offline speech pack.
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
             recognizer?.startListening(request)
