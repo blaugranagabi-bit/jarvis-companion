@@ -54,7 +54,9 @@ class MainActivity : Activity() {
  }
  override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray) {
   super.onRequestPermissionsResult(requestCode,permissions,grantResults)
-  if(requestCode==this.requestCode && grantResults.isNotEmpty() && grantResults.all { it==PackageManager.PERMISSION_GRANTED }) startWakeService()
-  else status.text="MICROPHONE PERMISSION IS REQUIRED"
+  if(requestCode==this.requestCode) {
+   val micGranted=checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED
+   if(micGranted) startWakeService() else status.text="MICROPHONE PERMISSION IS REQUIRED"
+  }
  }
 }
