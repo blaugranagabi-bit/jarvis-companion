@@ -49,42 +49,64 @@ class WakeWordService : Service() {
                 tts?.setPitch(0.92f)
             }
         }
-        if (SpeechRecognizer.isRecognitionAvailable(this)) {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
-                setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: android.os.Bundle?) { updateNotification("Listening for your command…") }
-                    override fun onBeginningOfSpeech() { updateNotification("Hearing you…") }
-                    override fun onRmsChanged(rmsdB: Float) {}
-                    override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() { updateNotification("Processing command…") }
-                    override fun onError(error: Int) {
-                        capturingCommand = false
-                        val reason = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                            SpeechRecognizer.ERROR_CLIENT -> "Speech service client error"
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission missing"
-                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service network unavailable"
-                            SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech recognised"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech service is busy"
-                            SpeechRecognizer.ERROR_SERVER -> "Speech service server error"
-                            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "English speech pack unavailable"
-                            else -> "Speech recognition error $error"
-                        }
-                        updateNotification("$reason — say Hey Jarvis to retry")
-                        speak("I could not understand that, sir. $reason.")
-                        resumeWakeWord()
-                    }
-                    override fun onResults(results: android.os.Bundle?) {
-                        capturingCommand = false
-                        val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                        if (phrase.isBlank()) speak("I did not catch that, sir.") else handleCommand(phrase)
-                        resumeWakeWord()
-                    }
-                    override fun onPartialResults(partialResults: android.os.Bundle?) {}
-                    override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
-                })
-            }
+        createSpeechRecognizer()
+    }
+
+
+    /**
+     * Create a fresh Android speech-recognition client for each command cycle.
+     * Some Android/OEM services leave a reused client busy after callbacks.
+     */
+    private fun createSpeechRecognizer() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            recognizer = null
+            return
         }
+        recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+            setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: android.os.Bundle?) { updateNotification("Listening for your command…") }
+                override fun onBeginningOfSpeech() { updateNotification("Hearing you…") }
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() { updateNotification("Processing command…") }
+                override fun onError(error: Int) {
+                    if (!capturingCommand) return
+                    capturingCommand = false
+                    resetSpeechRecognizer()
+                    val reason = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                        SpeechRecognizer.ERROR_CLIENT -> "Speech service client error"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission missing"
+                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service network unavailable"
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech recognised"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech service was busy; resetting it"
+                        SpeechRecognizer.ERROR_SERVER -> "Speech service server error"
+                        SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "English speech pack unavailable"
+                        else -> "Speech recognition error $error"
+                    }
+                    updateNotification("$reason — restarting listening")
+                    speak("I could not understand that, sir. $reason.")
+                    resumeWakeWord()
+                }
+                override fun onResults(results: android.os.Bundle?) {
+                    if (!capturingCommand) return
+                    capturingCommand = false
+                    val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    resetSpeechRecognizer()
+                    if (phrase.isBlank()) speak("I did not catch that, sir.") else handleCommand(phrase)
+                    resumeWakeWord()
+                }
+                override fun onPartialResults(partialResults: android.os.Bundle?) {}
+                override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
+            })
+        }
+    }
+
+    private fun resetSpeechRecognizer() {
+        val oldRecognizer = recognizer
+        recognizer = null
+        try { oldRecognizer?.cancel() } catch (_: Exception) {}
+        try { oldRecognizer?.destroy() } catch (_: Exception) {}
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -193,7 +215,10 @@ class WakeWordService : Service() {
     private fun listenForCommand() {
         try {
             detector?.stop()
-            if (recognizer == null) {
+            if (recognizer == null) createSpeechRecognizer()
+            val activeRecognizer = recognizer
+            if (activeRecognizer == null) {
+                capturingCommand = false
                 speak("Voice recognition is unavailable on this device, sir.")
                 resumeWakeWord()
                 return
@@ -202,13 +227,14 @@ class WakeWordService : Service() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-GB")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-GB")
-                // Do not force offline mode: many devices lack the required offline speech pack.
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
-            recognizer?.startListening(request)
+            activeRecognizer.startListening(request)
         } catch (e: Exception) {
             capturingCommand = false
+            resetSpeechRecognizer()
+            updateNotification("Speech recognizer restarting after startup error")
             speak("Voice recognition could not be started, sir.")
             resumeWakeWord()
         }
@@ -372,15 +398,15 @@ class WakeWordService : Service() {
     }
 
     private fun resumeWakeWord() {
-        // The service remains started while the wake-word detector is paused for command capture.
-        // Calling startWakeWord() here is ineffective because its `started` guard returns early.
-        // Recreate and restart the detector directly after the speech recognizer releases the mic.
+        // Let Android release the speech-recognition microphone before reopening
+        // capture. Each turn receives a fresh recognizer and wake-word detector.
         mainHandler.postDelayed({
             if (started && !capturingCommand) {
-                updateNotification("Restarting wake-word listening…")
+                if (recognizer == null) createSpeechRecognizer()
+                updateNotification("Ready — say Hey Jarvis")
                 startWakeWordDetector()
             }
-        }, 900)
+        }, 1500)
     }
 
     private fun speak(text: String) {
