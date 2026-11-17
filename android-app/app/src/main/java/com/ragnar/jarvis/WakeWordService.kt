@@ -1,7 +1,5 @@
 package com.ragnar.jarvis
 
-import ai.picovoice.porcupine.Porcupine
-import ai.picovoice.porcupine.PorcupineManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,20 +9,25 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.speech.tts.TextToSpeech
+import com.openwakeword.OpenWakeWord
 import java.util.Locale
 
 class WakeWordService : Service() {
-    private var porcupine: PorcupineManager? = null
+    private var detector: OpenWakeWord? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var started = false
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(NOTIFICATION_ID, notification("Initialising JARVIS wake-word engine"))
+        startForeground(NOTIFICATION_ID, notification("Starting offline wake-word engine"))
         tts = TextToSpeech(this) { result ->
             ttsReady = result == TextToSpeech.SUCCESS
-            if (ttsReady) tts?.language = Locale.UK
+            if (ttsReady) {
+                tts?.language = Locale.UK
+                tts?.setSpeechRate(0.94f)
+            }
         }
     }
 
@@ -33,30 +36,26 @@ class WakeWordService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        val accessKey = intent?.getStringExtra(EXTRA_ACCESS_KEY).orEmpty()
-        if (accessKey.isBlank()) {
-            updateNotification("Picovoice AccessKey required — open JARVIS")
-            speak("Sir, a Picovoice access key is required to activate the wake word.")
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        if (started) return START_STICKY
+
         try {
-            porcupine?.delete()
-            porcupine = PorcupineManager.Builder()
-                .setAccessKey(accessKey)
-                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
-                .build(applicationContext) {
-                    updateNotification("JARVIS detected — listening for your command")
-                    speak("Yes, sir?")
-                }
-            porcupine?.start()
-            updateNotification("Offline wake-word detection active — say Jarvis")
+            detector = OpenWakeWord.Builder(applicationContext)
+                .setModel(OpenWakeWord.BuiltInModel.HEY_JARVIS)
+                .setThreshold(0.5f)
+                .setDebounceMs(2500L)
+                .build()
+            detector?.start { score ->
+                updateNotification("Wake word detected — confidence ${"%.2f".format(score)}")
+                speak("Yes, sir?")
+            }
+            started = true
+            updateNotification("Listening offline — say Hey Jarvis")
         } catch (e: Exception) {
-            updateNotification("Wake engine error: check AccessKey")
-            speak("I could not initialise the wake word engine, sir.")
+            updateNotification("Could not start wake-word engine")
+            speak("I could not start the wake word engine, sir.")
             stopSelf()
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun speak(text: String) {
@@ -94,9 +93,9 @@ class WakeWordService : Service() {
     }
 
     override fun onDestroy() {
-        try { porcupine?.stop() } catch (_: Exception) {}
-        porcupine?.delete()
-        porcupine = null
+        try { detector?.stop() } catch (_: Exception) {}
+        detector?.release()
+        detector = null
         tts?.stop()
         tts?.shutdown()
         tts = null
@@ -106,7 +105,6 @@ class WakeWordService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        const val EXTRA_ACCESS_KEY = "com.ragnar.jarvis.ACCESS_KEY"
         private const val CHANNEL_ID = "jarvis_voice"
         private const val NOTIFICATION_ID = 7001
         private const val ACTION_STOP = "com.ragnar.jarvis.STOP"
