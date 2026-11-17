@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050d18">
+<meta name="description" content="JARVIS — personal AI companion interface">
+<link rel="manifest" href="manifest.webmanifest">
+<title>J.A.R.V.I.S.</title>
+<style>
+:root{--bg:#050b14;--panel:rgba(9,25,42,.78);--line:rgba(75,190,255,.24);--cyan:#64d9ff;--blue:#278bff;--muted:#8ba9c1;--white:#eaf8ff;--glow:0 0 28px rgba(43,166,255,.24)}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 22%,#102d49 0,#071421 35%,#030811 78%);color:var(--white);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background-image:linear-gradient(rgba(95,190,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(95,190,255,.08) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(to bottom,black,transparent 90%)}
+header{display:flex;justify-content:space-between;align-items:center;padding:22px 20px 8px;max-width:760px;margin:auto}
+.brand{letter-spacing:.28em;font-size:13px;font-weight:700;color:#d9f5ff}.brand small{display:block;font-size:9px;letter-spacing:.34em;color:var(--muted);margin-top:4px}
+.status{font-size:10px;letter-spacing:.14em;color:#8de9ff;border:1px solid var(--line);border-radius:20px;padding:7px 10px;background:#071a2a}
+main{max-width:760px;margin:auto;padding:12px 18px 32px}
+.hero{text-align:center;padding:20px 0 22px}
+.kicker{font-size:10px;letter-spacing:.34em;color:var(--muted);text-transform:uppercase}
+.core-wrap{height:260px;display:grid;place-items:center;position:relative;margin:8px auto 0}
+.core{width:194px;height:194px;border-radius:50%;position:relative;display:grid;place-items:center;filter:drop-shadow(0 0 22px rgba(42,171,255,.34))}
+.core:before,.core:after{content:"";position:absolute;border-radius:50%;inset:0;border:1px solid rgba(90,207,255,.52);box-shadow:inset 0 0 24px rgba(31,152,255,.12),0 0 24px rgba(31,152,255,.15)}
+.core:before{inset:10px;border-style:dashed;animation:spin 28s linear infinite}
+.core:after{inset:-14px;border-color:rgba(55,159,255,.22);border-left-color:var(--cyan);border-right-color:var(--cyan);animation:spin 12s linear infinite reverse}
+.core-inner{width:116px;height:116px;border-radius:50%;background:radial-gradient(circle at 50% 42%,#b9f5ff 0,#43c7ff 8%,#1179d6 27%,#082c58 54%,#041321 74%);box-shadow:0 0 18px #36bfff,0 0 58px rgba(22,151,255,.55),inset 0 0 22px #9deaff;position:relative}
+.core-inner:after{content:"";position:absolute;inset:18px;border:1px solid rgba(218,250,255,.55);border-radius:50%;box-shadow:0 0 18px rgba(154,233,255,.55)}
+.orbit{position:absolute;width:244px;height:244px;border:1px solid rgba(74,183,255,.13);border-radius:50%;transform:rotateX(67deg);box-shadow:0 0 18px rgba(38,159,255,.1)}
+.orbit.two{width:278px;height:278px;transform:rotateX(72deg) rotateZ(42deg);border-style:dashed}
+.core-label{position:absolute;bottom:0;font-size:9px;letter-spacing:.32em;color:#7ebbd9}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{font-size:27px;letter-spacing:.16em;font-weight:500;margin:3px 0 7px}.subtitle{color:#9bb8cb;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 16px}
+.metric,.panel{background:linear-gradient(145deg,rgba(13,35,56,.84),rgba(5,17,30,.88));border:1px solid var(--line);border-radius:14px;box-shadow:var(--glow)}
+.metric{padding:12px 9px;text-align:center}.metric b{display:block;font-size:12px;color:#dff7ff;font-weight:600}.metric span{font-size:9px;color:var(--muted);letter-spacing:.12em}
+.panel{padding:15px;margin:12px 0}.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.panel-head strong{font-size:11px;letter-spacing:.2em;font-weight:600}.panel-head span{font-size:9px;color:var(--cyan);letter-spacing:.12em}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.quick button,.action{border:1px solid rgba(92,189,255,.25);background:rgba(11,38,62,.8);color:#dff6ff;border-radius:10px;padding:11px 7px;font-size:11px;min-height:42px}
+button:active{transform:scale(.98)}button{cursor:pointer}
+.command{display:flex;gap:8px}.command input{min-width:0;flex:1;background:#061321;border:1px solid rgba(93,190,255,.3);border-radius:10px;padding:13px;color:white;font-size:13px;outline:none}.command input:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(100,217,255,.1)}
+.command button{border:1px solid #49bfff;background:linear-gradient(135deg,#1268a7,#0a355e);color:white;border-radius:10px;padding:0 16px;font-weight:600}
+.response{min-height:44px;color:#b8d7e8;font-size:12px;line-height:1.5;padding:8px 2px 0}
+.footer{display:flex;justify-content:space-between;color:#68869c;font-size:9px;letter-spacing:.12em;padding:14px 3px}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;color:#b8d5e7;font-size:12px}
+.switch{accent-color:#31bfff;width:17px;height:17px}
+@media(max-width:390px){.core-wrap{height:235px}.core{transform:scale(.9)}.quick button{font-size:10px}.metrics{gap:6px}}
+</style>
+</head>
+<body>
+<header><div class="brand">J.A.R.V.I.S.<small>PERSONAL INTELLIGENCE SYSTEM</small></div><div class="status">● SYSTEM ONLINE</div></header>
+<main>
+<section class="hero">
+ <div class="kicker">Just A Rather Very Intelligent System</div>
+ <div class="core-wrap"><div class="orbit"></div><div class="orbit two"></div><div class="core"><div class="core-inner"></div></div><div class="core-label">NEURAL CORE // STANDBY</div></div>
+ <h1>AT YOUR SERVICE</h1><div class="subtitle">Good evening, sir. All systems are standing by.</div>
+</section>
+<section class="metrics">
+ <div class="metric"><b id="clock">--:--</b><span>LOCAL TIME</span></div>
+ <div class="metric"><b>EN-GB</b><span>VOICE PROFILE</span></div>
+ <div class="metric"><b id="state">READY</b><span>ASSISTANT STATUS</span></div>
+</section>
+<section class="panel">
+ <div class="panel-head"><strong>COMMAND INTERFACE</strong><span>AWAITING INPUT</span></div>
+ <div class="command"><input id="cmd" placeholder="What can I do for you, sir?" autocomplete="off"><button id="send">SEND</button></div>
+ <div class="quick"><button data-cmd="Give me a briefing.">Briefing</button><button data-cmd="Help me plan my day.">Plan my day</button><button data-cmd="Let's work on my projects.">Projects</button></div>
+ <div class="response" id="response">Command channel ready. Your request will be handed to ChatGPT for its response.</div>
+</section>
+<section class="panel">
+ <div class="panel-head"><strong>VOICE SYSTEM</strong><span id="voice-status">BROWSER VOICE</span></div>
+ <div class="toggle-row"><span>Spoken responses</span><input class="switch" id="speak" type="checkbox" checked></div>
+ <div class="toggle-row"><span>British English voice preference</span><input class="switch" id="british" type="checkbox" checked></div>
+ <div class="quick"><button id="testvoice">Test voice</button><button id="listen">Voice input</button><button id="stopvoice">Silence</button></div>
+ <div class="response" id="voice-note">Voice quality depends on the voices installed on your Android device. This is not ChatGPT's native voice.</div>
+</section>
+<div class="footer"><span>JARVIS // HYBRID INTERFACE</span><span>LOCAL COMPANION BUILD 02</span></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function tick(){ $('clock').textContent=new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date());}
+tick();setInterval(tick,15000);
+function say(text){
+ if(!$('speak').checked || !('speechSynthesis' in window)) return;
+ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text);
+ const voices=speechSynthesis.getVoices(); const prefer=$('british').checked;
+ const v=voices.find(x=>prefer && /^en-GB/i.test(x.lang))||voices.find(x=>/^en/i.test(x.lang));
+ if(v)u.voice=v;u.rate=.91;u.pitch=.88;u.volume=1;speechSynthesis.speak(u);
+}
+function submit(text){
+ const q=(text||$('cmd').value).trim();if(!q)return;
+ $('cmd').value=q;$('state').textContent='ENGAGED';$('response').textContent='Certainly, sir. Opening ChatGPT with your request…';
+ say('Certainly, sir. I shall open ChatGPT with your request.');
+ location.href='https://chatgpt.com/?q='+encodeURIComponent(q);
+}
+$('send').onclick=()=>submit();
+$('cmd').addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
+document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>submit(b.dataset.cmd));
+$('testvoice').onclick=()=>say('Good evening, sir. JARVIS systems are online. How may I assist you?');
+$('stopvoice').onclick=()=>{if('speechSynthesis'in window)speechSynthesis.cancel();};
+let recognition;
+$('listen').onclick=()=>{
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){$('voice-note').textContent='Speech recognition is not supported in this browser. You can still type commands.';return;}
+ recognition=new SR();recognition.lang='en-GB';recognition.interimResults=false;
+ $('voice-note').textContent='Listening. Please speak, sir.';
+ recognition.onresult=e=>{const t=e.results[0][0].transcript;$('cmd').value=t;$('voice-note').textContent='Heard: '+t;};
+ recognition.onerror=e=>$('voice-note').textContent='Microphone issue: '+e.error+'. Check Chrome site permissions.';
+ recognition.onend=()=>{$('state').textContent='READY';};
+ $('state').textContent='LISTENING';recognition.start();
+};
+if('serviceWorker'in navigator && location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
