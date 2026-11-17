@@ -148,6 +148,8 @@ class JarvisWakeWordDetector private constructor(
     private var listener: OnDetectionListener? = null
     @Volatile private var statusListener: ((String) -> Unit)? = null
     @Volatile private var lastReportedScoreAt = 0L
+    @Volatile private var lastAudioRms = 0.0
+    @Volatile private var inferenceError = ""
 
     private fun reportStatus(message: String) {
         Log.i(TAG, message)
@@ -334,6 +336,12 @@ class JarvisWakeWordDetector private constructor(
             if (read < 0) { reportStatus("Audio read failed: $read"); break }
             if (read != FRAME_SAMPLES) continue
 
+            var sumSquares = 0.0
+            for (sample in frame) {
+                val value = sample.toInt()
+                sumSquares += value.toDouble() * value.toDouble()
+            }
+            lastAudioRms = kotlin.math.sqrt(sumSquares / frame.size)
             addToRawBuffer(frame)
             if (rawTotalWritten < FRAME_SAMPLES + MEL_CONTEXT_SAMPLES) continue
 
@@ -365,7 +373,7 @@ class JarvisWakeWordDetector private constructor(
                 val nowForStatus = System.currentTimeMillis()
                 if (nowForStatus - lastReportedScoreAt >= 5000L) {
                     lastReportedScoreAt = nowForStatus
-                    reportStatus("Wake-word engine active; latest confidence ${String.format(java.util.Locale.US, "%.3f", score)}")
+                    reportStatus("Wake-word active; confidence ${String.format(java.util.Locale.US, "%.3f", score)}, mic RMS ${String.format(java.util.Locale.US, "%.0f", lastAudioRms)}, inference error ${inferenceError.ifBlank { "none" }}")
                 }
                 if (score >= threshold) {
                     val now = System.currentTimeMillis()
@@ -434,6 +442,7 @@ class JarvisWakeWordDetector private constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Mel spectrogram error", e)
+            inferenceError = "Mel: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
             null
         }
     }
@@ -457,6 +466,7 @@ class JarvisWakeWordDetector private constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Embedding error", e)
+            inferenceError = "Embedding: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
             null
         }
     }
@@ -480,6 +490,7 @@ class JarvisWakeWordDetector private constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Wake word model error", e)
+            inferenceError = "Classifier: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
             0f
         }
     }
