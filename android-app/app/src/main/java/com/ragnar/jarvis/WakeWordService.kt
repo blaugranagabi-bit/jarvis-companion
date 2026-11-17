@@ -6,11 +6,16 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.AudioManager
+import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.AlarmClock
+import android.provider.CalendarContract
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -27,6 +32,7 @@ class WakeWordService : Service() {
     private var ttsReady = false
     private var started = false
     private var capturingCommand = false
+    private var torchOn = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
@@ -85,7 +91,7 @@ class WakeWordService : Service() {
                 .setThreshold(0.5f)
                 .setDebounceMs(2500L)
                 .build()
-            detector?.start { score ->
+            detector?.start {
                 mainHandler.post {
                     if (!capturingCommand) {
                         capturingCommand = true
@@ -130,20 +136,26 @@ class WakeWordService : Service() {
     private fun handleCommand(raw: String) {
         val command = raw.lowercase(Locale.UK).trim()
         when {
-            command.contains("time") -> {
-                val time = SimpleDateFormat("h:mm a", Locale.UK).format(Date())
-                speak("The time is $time, sir.")
-            }
-            command.contains("date") || command.contains("day is it") -> {
-                val date = SimpleDateFormat("EEEE, d MMMM", Locale.UK).format(Date())
-                speak("Today is $date, sir.")
-            }
-            command.contains("open youtube") -> openAppOrWeb("com.google.android.youtube", "https://www.youtube.com", "Opening YouTube, sir.")
-            command.contains("open maps") || command.contains("open google maps") -> openAppOrWeb("com.google.android.apps.maps", "https://maps.google.com", "Opening Maps, sir.")
-            command.contains("open settings") -> {
-                speak("Opening settings, sir.")
-                launch(Intent(android.provider.Settings.ACTION_SETTINGS))
-            }
+            command.contains("time") -> speak("The time is ${SimpleDateFormat("h:mm a", Locale.UK).format(Date())}, sir.")
+            command.contains("date") || command.contains("day is it") -> speak("Today is ${SimpleDateFormat("EEEE, d MMMM", Locale.UK).format(Date())}, sir.")
+            command.contains("flashlight") || command.contains("flash light") || command.contains("torch") -> setTorch(!torchOn)
+            command.contains("volume up") || command.contains("turn it up") -> changeVolume(AudioManager.ADJUST_RAISE)
+            command.contains("volume down") || command.contains("turn it down") -> changeVolume(AudioManager.ADJUST_LOWER)
+            command.contains("mute") -> changeVolume(AudioManager.ADJUST_MUTE)
+            command.contains("unmute") -> changeVolume(AudioManager.ADJUST_UNMUTE)
+            command.startsWith("set an alarm") || command.startsWith("set alarm") -> setAlarm(command)
+            command.startsWith("set a timer") || command.startsWith("set timer") -> setTimer(command)
+            command.contains("open bluetooth") || command.contains("bluetooth settings") -> openSettingsPanel("android.settings.panel.action.BLUETOOTH")
+            command.contains("open internet") || command.contains("wifi settings") || command.contains("wi-fi settings") -> openSettingsPanel("android.settings.panel.action.INTERNET_CONNECTIVITY")
+            command.contains("open sound settings") || command.contains("sound settings") -> launch(Intent(Settings.ACTION_SOUND_SETTINGS), "Opening sound settings, sir.")
+            command.contains("open display settings") || command.contains("brightness settings") -> launch(Intent(Settings.ACTION_DISPLAY_SETTINGS), "Opening display settings, sir.")
+            command.contains("open location settings") || command.contains("gps settings") -> launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS), "Opening location settings, sir.")
+            command.contains("open app settings") -> launch(Intent(Settings.ACTION_APPLICATION_SETTINGS), "Opening application settings, sir.")
+            command.contains("open settings") -> launch(Intent(Settings.ACTION_SETTINGS), "Opening settings, sir.")
+            command.startsWith("call ") -> dialNumber(command.removePrefix("call ").filter { it.isDigit() || it == '+' })
+            command.startsWith("text ") || command.startsWith("send a text to ") -> composeText(command)
+            command.startsWith("navigate to ") || command.startsWith("directions to ") -> navigate(command.substringAfter(" to ").trim())
+            command.startsWith("create a calendar event") || command.startsWith("add calendar event") -> createCalendarEvent(command)
             command.startsWith("search for ") || command.startsWith("google ") -> {
                 val query = command.removePrefix("search for ").removePrefix("google ").trim()
                 speak("Searching the web for $query, sir.")
@@ -154,31 +166,132 @@ class WakeWordService : Service() {
                 speak("Preparing that for ChatGPT, sir.")
                 launch(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/?q=" + Uri.encode(prompt))))
             }
+            command.contains("open youtube") -> openAppOrWeb("com.google.android.youtube", "https://www.youtube.com", "Opening YouTube, sir.")
+            command.contains("open maps") || command.contains("open google maps") -> openAppOrWeb("com.google.android.apps.maps", "https://maps.google.com", "Opening Maps, sir.")
+            command.contains("open camera") -> launch(Intent("android.media.action.IMAGE_CAPTURE"), "Opening the camera, sir.")
+            command.startsWith("open ") -> openNamedApp(command.removePrefix("open ").trim())
             command.contains("stop listening") || command.contains("stand down") -> {
                 speak("Standing down, sir.")
                 stopSelf()
             }
-            else -> {
-                speak("I can tell you the time or date, open YouTube, Maps or settings, search the web, or prepare a question for ChatGPT. What would you like, sir?")
-            }
+            else -> speak("I can control the flashlight and volume, set alarms and timers, open apps and settings, prepare calls or texts, create calendar events, navigate, or search the web. What would you like, sir?")
         }
     }
 
-    private fun openAppOrWeb(packageName: String, url: String, response: String) {
-        speak(response)
-        val app = packageManager.getLaunchIntentForPackage(packageName)
-        launch(app ?: Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    private fun setTorch(enabled: Boolean) {
+        try {
+            val manager = getSystemService(CameraManager::class.java)
+            val cameraId = manager.cameraIdList.firstOrNull { manager.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
+            if (cameraId == null) { speak("This device does not appear to have a camera flash, sir."); return }
+            manager.setTorchMode(cameraId, enabled)
+            torchOn = enabled
+            speak(if (enabled) "Flashlight on, sir." else "Flashlight off, sir.")
+        } catch (_: SecurityException) {
+            speak("Please grant camera permission to JARVIS to control the flashlight, sir.")
+            launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        } catch (_: Exception) { speak("I could not change the flashlight, sir.") }
     }
 
-    private fun launch(intent: Intent) {
+    private fun changeVolume(direction: Int) {
+        val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
+        speak("Volume adjusted, sir.")
+    }
+
+    private fun setAlarm(command: String) {
+        val match = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?").find(command)
+        if (match == null) { speak("Please say the alarm time, for example, set an alarm for seven thirty AM."); return }
+        var hour = match.groupValues[1].toIntOrNull() ?: 7
+        val minute = match.groupValues[2].toIntOrNull() ?: 0
+        when (match.groupValues[3]) {
+            "pm" -> if (hour < 12) hour += 12
+            "am" -> if (hour == 12) hour = 0
+        }
+        if (hour !in 0..23 || minute !in 0..59) { speak("That time does not look valid, sir."); return }
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).putExtra(AlarmClock.EXTRA_HOUR, hour)
+            .putExtra(AlarmClock.EXTRA_MINUTES, minute).putExtra(AlarmClock.EXTRA_MESSAGE, "JARVIS alarm")
+            .putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+        launch(intent, "Setting the alarm for ${String.format(Locale.UK, "%02d:%02d", hour, minute)}, sir.")
+    }
+
+    private fun setTimer(command: String) {
+        val amount = Regex("(\\d+)").find(command)?.value?.toIntOrNull()
+        if (amount == null || amount <= 0) { speak("Please specify a timer duration in seconds or minutes, sir."); return }
+        val seconds = if (command.contains("hour")) amount * 3600 else if (command.contains("second")) amount else amount * 60
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+            .putExtra(AlarmClock.EXTRA_MESSAGE, "JARVIS timer").putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+        launch(intent, "Setting a timer for $amount ${if (command.contains("hour")) "hours" else if (command.contains("second")) "seconds" else "minutes"}, sir.")
+    }
+
+    private fun dialNumber(number: String) {
+        if (number.length < 3) { speak("Please say the telephone number after the word call, sir."); return }
+        launch(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")), "Opening the dialler. Please confirm the call, sir.")
+    }
+
+    private fun composeText(command: String) {
+        val number = Regex("(\\+?[0-9][0-9 -]{5,})").find(command)?.value?.replace(" ", "")?.replace("-", "")
+        val body = command.substringAfter(" saying ", "").ifBlank { command.substringAfter(" message ", "") }
+        if (number.isNullOrBlank()) {
+            speak("Please include the recipient's phone number. I will open a message draft for you to review.")
+            launch(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING), "Opening your messages, sir.")
+        } else {
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")).apply {
+                if (body.isNotBlank()) putExtra("sms_body", body)
+            }
+            launch(intent, "Opening a message draft. Please review and send it yourself, sir.")
+        }
+    }
+
+    private fun navigate(destination: String) {
+        if (destination.isBlank()) { speak("Please specify a destination, sir."); return }
+        val uri = Uri.parse("google.navigation:q=" + Uri.encode(destination))
+        launch(Intent(Intent.ACTION_VIEW, uri).setPackage("com.google.android.apps.maps"), "Preparing directions to $destination, sir.")
+    }
+
+    private fun createCalendarEvent(command: String) {
+        val title = command.substringAfter("event", "").trim().ifBlank { "New event" }
+        val intent = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
+            .putExtra(CalendarContract.Events.TITLE, title)
+        launch(intent, "Opening a new calendar event for you to complete, sir.")
+    }
+
+    private fun openSettingsPanel(action: String) {
+        if (Build.VERSION.SDK_INT >= 29) launch(Intent(action), "Opening the relevant system controls, sir.")
+        else launch(Intent(Settings.ACTION_SETTINGS), "Opening settings, sir.")
+    }
+
+    private fun openNamedApp(name: String) {
+        val aliases = mapOf(
+            "phone" to "com.google.android.dialer", "dialler" to "com.google.android.dialer",
+            "messages" to "com.google.android.apps.messaging", "gmail" to "com.google.android.gm",
+            "chrome" to "com.android.chrome", "calendar" to "com.google.android.calendar",
+            "photos" to "com.google.android.apps.photos", "gallery" to "com.miui.gallery",
+            "camera" to "com.android.camera", "spotify" to "com.spotify.music",
+            "youtube music" to "com.google.android.apps.youtube.music", "chatgpt" to "com.openai.chatgpt",
+            "whatsapp" to "com.whatsapp", "telegram" to "org.telegram.messenger",
+            "tiktok" to "com.zhiliaoapp.musically", "instagram" to "com.instagram.android",
+            "facebook" to "com.facebook.katana", "revolut" to "com.revolut.revolut",
+            "maps" to "com.google.android.apps.maps", "settings" to "com.android.settings"
+        )
+        val pkg = aliases[name]
+        if (pkg == null) { speak("I do not have an application shortcut for $name yet, sir."); return }
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+        if (intent == null) speak("$name does not appear to be installed, sir.") else launch(intent, "Opening $name, sir.")
+    }
+
+    private fun openAppOrWeb(packageName: String, url: String, response: String) {
+        val app = packageManager.getLaunchIntentForPackage(packageName)
+        launch(app ?: Intent(Intent.ACTION_VIEW, Uri.parse(url)), response)
+    }
+
+    private fun launch(intent: Intent, response: String) {
+        speak(response)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try { startActivity(intent) } catch (_: Exception) { speak("I could not open that destination, sir.") }
     }
 
     private fun resumeWakeWord() {
-        mainHandler.postDelayed({
-            if (started && !capturingCommand) startWakeWord()
-        }, 900)
+        mainHandler.postDelayed({ if (started && !capturingCommand) startWakeWord() }, 900)
     }
 
     private fun speak(text: String) {
