@@ -284,7 +284,7 @@ class WakeWordService : Service() {
         launch(app ?: Intent(Intent.ACTION_VIEW, Uri.parse(url)), response)
     }
 
-    private fun launch(intent: Intent, response: String) {
+    private fun launch(intent: Intent, response: String = "One moment, sir.") {
         speak(response)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try { startActivity(intent) } catch (_: Exception) { speak("I could not open that destination, sir.") }
